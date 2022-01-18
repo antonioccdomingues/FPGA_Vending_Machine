@@ -1,0 +1,149 @@
+library IEEE;
+use IEEE.STD_LOGIC_1164.all;
+use IEEE.NUMERIC_STD.all;
+
+entity Main is
+	port(clk		: in	std_logic;
+		  reset	: in	std_logic;
+		  m1		: in	std_logic; --10
+		  m2		: in	std_logic; --20
+		  m3		: in  std_logic; --50
+		  m4		: in  std_logic; --100
+		  pr1		: in  std_logic; --produto1
+		  pr2		: in  std_logic; --produto2
+		  pr3		: in  std_logic; --produto3
+		  verde  : in  std_logic; --sinal que indica que os 3 segundos de luz verde já passaram
+		  uc		: out std_logic_vector(4 downto 0) := "00000"; --unidades de cêntimo
+		  dc		: out std_logic_vector(4 downto 0); --décimas de cêntimo
+		  cc		: out std_logic_vector(4 downto 0); --centésimas de cêntimo
+		  sair	: out std_logic);
+end Main;
+
+architecture Behavioral of Main is
+
+	type TState is (S0, S1, P1, P2, P3, SS);
+	signal NState, PState: TState;
+	signal s_valint : unsigned(4 downto 0) := "00000"; --valor introduzido
+	signal s_troco  : unsigned(4 downto 0) := "00000"; --troco
+	signal s_out    : unsigned(4 downto 0) := "00000"; --valor a sair para os displays
+	signal s_dc     : unsigned(4 downto 0) := "00000"; --décimas de cêntimo
+	signal s_cc     : unsigned(4 downto 0) := "00000"; --centésimas de cêntimo
+begin
+
+	dc <= std_logic_vector(s_dc);
+	cc <= std_logic_vector(s_cc);
+	s_dc <= s_out - s_cc;
+	s_cc <= (s_out / 10);
+
+	sync_proc: process(clk, reset)
+	begin
+		if(reset = '1') then
+			PState <= S0;
+		elsif(rising_edge(clk)) then
+			PState <= NState;
+		end if;
+	end process;
+	
+	comb_proc: process(PState, m1, m2, m3, m4, pr1, pr2, pr3, verde)
+	begin
+		if (m1 = '1') then
+			s_valint <= s_valint + "00001";
+		elsif (m2 = '1') then
+			s_valint <= s_valint + "00010";
+		elsif (m3 = '1') then
+			s_valint <= s_valint + "00101";
+		elsif (m4 = '1') then
+			s_valint <= s_valint + "01010";
+		else
+			s_valint <= s_valint;
+		end if;
+		
+		case PState is
+		
+		
+			when S0 =>
+				
+				sair <= '0';
+				if(pr1 = '1') then
+					if(s_valint >= "00100") then
+						NState <= P1;
+					else
+						NState <= S1;
+					end if;
+				elsif(pr2 = '1') then
+					if(s_valint >= "00111") then
+						NState <= P2;
+					else
+						NState <= S1;
+					end if;
+				elsif(pr3 = '1') then
+						NState <= S1;
+				else
+					NState <= S0;
+				end if;
+				s_out <= (s_valint);
+				
+				
+			when S1 =>
+				sair <= '0';
+				if(pr1 = '1') then
+					if(s_valint >= "00100") then
+						NState <= P1;
+					else
+						NState <= S1;
+					end if;
+				elsif(pr2 = '1') then
+					if(s_valint >= "00111") then
+						NState <= P2;
+					else
+						NState <= S1;
+					end if;
+				elsif(pr3 = '1') then
+					if(s_valint >= "01100") then
+						NState <= P3;
+					else
+						NState <= S1;
+					end if;
+				else
+					NState <= S0;
+				end if;
+				s_out <= (s_valint);
+				
+				
+			when P1 =>
+				s_troco <= s_valint - "00100";
+				s_out <= (s_troco);
+				sair <= '1';
+				NState <= SS;
+				
+				
+			when P2 =>
+				s_troco <= s_valint - "00111";
+				s_out <= (s_troco);
+				sair <= '1';
+				NState <= SS;
+				
+				
+			when P3 =>
+				s_troco <= s_valint - "01100";
+				s_out <= (s_troco);
+				sair <= '1';
+				NState <= SS;
+				
+				
+			when SS =>
+				sair <= '0';
+				if (verde = '0') then
+					NState <= S0;
+				else
+					NState <= SS;
+				end if;
+				s_troco <= "00000";
+				s_valint <= "00000";
+			when others =>
+				NState <= S0;
+		end case;
+	end process;
+	
+	
+end Behavioral;
